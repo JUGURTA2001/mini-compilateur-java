@@ -39,25 +39,215 @@ public class Parser {
     }
 
     private ASTNode parseStatement() {
+        // 1. Consommer tous les modificateurs disponibles
+        List<Token> modifiers = new ArrayList<>();
+        while (isModifier(current().type)) {
+            modifiers.add(current());
+            advance();
+        }
+
         Token token = current();
 
-        switch (token.type) {
-            case WHILE:
-                return parseWhile();
-            case IF:
-                return parseIf();
-            case INT:
-            case STRING:
+        // 2. Reconnaître la déclaration de classe
+        if (token.type == Token.TokenType.CLASS) {
+            return parseClass(modifiers);
+        }
+
+        // 3. Reconnaître la déclaration de méthode
+        if (isReturnType(token.type)) {
+            if (isLikelyMethod(modifiers, token)) {
+                return parseMethod(modifiers);
+            } else {
                 return parseDeclaration();
-            case IDENTIFIER:
-                return parseAssignment();
-            case LBRACE:
-                return parseBlock();
+            }
+        }
+
+        // 4. Instructions usuelles
+        switch (token.type) {
+            case WHILE: return parseWhile();
+            case IF: return parseIf();
+            case STRING:  
+            case CHAR:
+            case INT:  
+            case DOUBLE:
+            case BOOLEAN:
+            case JUGURTA:
+            case TOUATI:
+           
+                if (!modifiers.isEmpty() || token.type == Token.TokenType.VOID) {
+                    return parseMethod(modifiers);
+                } else {
+                    return parseDeclaration();
+                }
+            case IDENTIFIER: 
+                // Vérifier si c'est un appel de méthode ou une assignation
+                if (peek().type == Token.TokenType.LPAREN) {
+                    return parseMethodCall();
+                } else {
+                    return parseAssignment();
+                }
+            case LBRACE: return parseBlock();
             default:
-                advance();
                 errors.add("Instruction non reconnue: " + token.value + " à la ligne " + token.line);
+                advance();
                 return null;
         }
+    }
+
+    // Nouvelle méthode pour détecter si c'est une méthode
+    private boolean isLikelyMethod(List<Token> modifiers, Token typeToken) {
+        // Si on a des modificateurs, c'est une méthode
+        if (!modifiers.isEmpty()) {
+            return true;
+        }
+        
+        // Si c'est 'void', c'est une méthode
+        if (typeToken.type == Token.TokenType.VOID) {
+            return true;
+        }
+        
+        // Regarder les tokens suivants pour détecter une signature de méthode
+        int savedPosition = position;
+        try {
+            advance(); // passer le type
+            
+            // Si le prochain token est un identifiant suivi de '(', c'est une méthode
+            if (current().type == Token.TokenType.IDENTIFIER) {
+                advance();
+                if (current().type == Token.TokenType.LPAREN) {
+                    return true;
+                }
+            }
+            return false;
+        } finally {
+            position = savedPosition;
+        }
+    }
+
+    private boolean isModifier(Token.TokenType type) {
+        return type == Token.TokenType.PUBLIC || 
+               type == Token.TokenType.STATIC ||
+               type == Token.TokenType.PRIVATE ||
+               type == Token.TokenType.PROTECTED ||
+               type == Token.TokenType.FINAL;
+    }
+
+    private boolean isReturnType(Token.TokenType type) {
+        return type == Token.TokenType.VOID ||
+               type == Token.TokenType.INT ||
+               type == Token.TokenType.STRING ||
+               type == Token.TokenType.DOUBLE ||
+               type == Token.TokenType.CHAR ||
+               type == Token.TokenType.BOOLEAN ||
+               type == Token.TokenType.JUGURTA ||
+               type == Token.TokenType.TOUATI;
+    }
+
+    private Token peek() {
+        if (position + 1 < tokens.size()) {
+            return tokens.get(position + 1);
+        }
+        return tokens.get(tokens.size() - 1);
+    }
+
+    private Token peekNext() {
+        if (position + 2 < tokens.size()) {
+            return tokens.get(position + 2);
+        }
+        return tokens.get(tokens.size() - 1);
+    }
+
+    private ASTNode parseClass(List<Token> modifiers) {
+        consume(Token.TokenType.CLASS, "Expected 'class' keyword");
+        Token nameToken = consume(Token.TokenType.IDENTIFIER, "Expected class name");
+        ASTNode classNode = new ASTNode("CLASS");
+        classNode.value = nameToken.value;
+        classNode.line = nameToken.line;
+        for (Token mod : modifiers) {
+            classNode.addChild(new ASTNode("MODIFIER", mod.value, mod.line));
+        }
+        
+        consume(Token.TokenType.LBRACE, "Expected '{' to start class body");
+        while (!isAtEnd() && current().type != Token.TokenType.RBRACE) {
+            ASTNode statement = parseStatement();
+            if (statement != null) {
+                classNode.addChild(statement);
+            }
+        }
+        consume(Token.TokenType.RBRACE, "Expected '}' to close class body");
+        return classNode;
+    }
+
+    private ASTNode parseMethod(List<Token> modifiers) {
+        Token returnType = current();
+        advance(); // consomme le type
+        Token nameToken = consume(Token.TokenType.IDENTIFIER, "Expected method name");
+        ASTNode methodNode = new ASTNode("METHOD");
+        methodNode.value = nameToken.value;
+        methodNode.line = nameToken.line;
+        methodNode.addChild(new ASTNode("RETURN_TYPE", returnType.value, returnType.line));
+        for (Token mod : modifiers) {
+            methodNode.addChild(new ASTNode("MODIFIER", mod.value, mod.line));
+        }
+        consume(Token.TokenType.LPAREN, "Expected '(' for method parameters");
+        // ignore les paramètres
+        while (!isAtEnd() && current().type != Token.TokenType.RPAREN) advance();
+        consume(Token.TokenType.RPAREN, "Expected ')' after method parameters");
+        consume(Token.TokenType.LBRACE, "Expected '{' to start method body");
+        while (!isAtEnd() && current().type != Token.TokenType.RBRACE) {
+            ASTNode statement = parseStatement();
+            if (statement != null) {
+                methodNode.addChild(statement);
+            }
+        }
+        consume(Token.TokenType.RBRACE, "Expected '}' to close method body");
+        return methodNode;
+    }
+
+    // Nouvelle méthode pour parser les appels de méthode
+    private ASTNode parseMethodCall() {
+        Token firstToken = current();
+        StringBuilder methodName = new StringBuilder();
+        
+        // Construire le nom complet de la méthode (peut être System.out.println)
+        while (current().type == Token.TokenType.IDENTIFIER) {
+            methodName.append(current().value);
+            advance();
+            if (current().type == Token.TokenType.DOT) {
+                methodName.append(".");
+                advance();
+            } else {
+                break;
+            }
+        }
+        
+        ASTNode methodCall = new ASTNode("METHOD_CALL");
+        methodCall.value = methodName.toString();
+        methodCall.line = firstToken.line;
+        
+        consume(Token.TokenType.LPAREN, "Expected '(' after method name");
+        
+        // Parser les arguments (simplifié)
+        while (!isAtEnd() && current().type != Token.TokenType.RPAREN) {
+            ASTNode arg = parseExpression();
+            if (arg != null) {
+                methodCall.addChild(new ASTNode("ARGUMENT").addChild(arg));
+            }
+            if (current().type == Token.TokenType.COMMA) {
+                advance();
+            }
+        }
+        
+        consume(Token.TokenType.RPAREN, "Expected ')' after method arguments");
+        
+        // Consommer le point-virgule s'il est présent
+        if (current().type == Token.TokenType.SEMICOLON) {
+            advance();
+        } else {
+            errors.add("Expected ';' after method call at line " + firstToken.line);
+        }
+        
+        return methodCall;
     }
 
     private ASTNode parseWhile() {
@@ -185,6 +375,13 @@ public class Parser {
             return expr;
         }
 
+        if (token.type == Token.TokenType.STRING_LITERAL) {
+            advance();
+            ASTNode stringNode = new ASTNode("STRING_LITERAL");
+            stringNode.value = token.value;
+            return stringNode;
+        }
+
         errors.add("Expression invalide: " + token.value + " à la ligne " + token.line);
         advance();
         return new ASTNode("ERROR");
@@ -217,23 +414,84 @@ public class Parser {
     }
 
     private ASTNode parseDeclaration() {
+        //System.out.println("DEBUG: parseDeclaration() started with token: " + current().value);
         Token typeToken = current();
         advance();
 
-        Token idToken = consume(Token.TokenType.IDENTIFIER, "Expected identifier");
+        // Vérifier qu'on a bien un identifiant
+        if (current().type != Token.TokenType.IDENTIFIER) {
+            errors.add("Expected identifier but found '" + current().value + "' at line " + current().line);
+            return null;
+        }
+        
+        Token idToken = current();
+        advance();
         
         ASTNode declaration = new ASTNode("DECLARATION");
         declaration.line = typeToken.line;
         declaration.value = typeToken.value + " " + idToken.value;
 
+        // Gestion de l'initialisation optionnelle
         if (current().type == Token.TokenType.EQUAL) {
             advance();
             ASTNode init = parseExpression();
-            declaration.addChild(init);
+            if (init != null) {
+                declaration.addChild(init);
+            }
         }
 
-        consume(Token.TokenType.SEMICOLON, "Expected ';'");
+        // Gestion du point-virgule final - AMÉLIORATION
+        if (current().type == Token.TokenType.SEMICOLON) {
+            advance();
+        } else {
+            // Message d'erreur plus précis avec la bonne ligne
+            int errorLine = Math.max(typeToken.line, idToken.line);
+            errors.add("Expected ';' after declaration at line " + errorLine + " but found '" + current().value + "'");
+            synchronizeToNextStatement();
+        }
+        
+        //System.out.println("DEBUG: parseDeclaration() ending, next token: " + current().value);
         return declaration;
+    }
+
+    // Nouvelle méthode de resynchronisation améliorée
+    private void synchronizeToNextStatement() {
+        int startPosition = position;
+        
+        while (!isAtEnd()) {
+            Token token = current();
+            
+            // Tokens qui marquent le début d'une nouvelle instruction
+            if (token.type == Token.TokenType.SEMICOLON ||
+                token.type == Token.TokenType.INT || 
+                token.type == Token.TokenType.DOUBLE ||
+                token.type == Token.TokenType.STRING ||
+                token.type == Token.TokenType.WHILE ||
+                token.type == Token.TokenType.IF ||
+                token.type == Token.TokenType.IDENTIFIER ||
+                token.type == Token.TokenType.RBRACE ||
+                token.type == Token.TokenType.PUBLIC ||
+                token.type == Token.TokenType.PRIVATE) {
+                
+                // Si on trouve un point-virgule, on le consomme
+                if (token.type == Token.TokenType.SEMICOLON) {
+                    advance();
+                }
+                return;
+            }
+            
+            // Limiter la recherche pour éviter de sauter trop loin
+            if (position > startPosition + 10) {
+                return;
+            }
+            
+            advance();
+        }
+    }
+
+    // Conserver l'ancienne méthode pour la compatibilité
+    private void synchronize() {
+        synchronizeToNextStatement();
     }
 
     private ASTNode parseAssignment() {
@@ -248,7 +506,11 @@ public class Parser {
             assignment.value = idToken.value;
             assignment.addChild(value);
             
-            consume(Token.TokenType.SEMICOLON, "Expected ';'");
+            if (current().type == Token.TokenType.SEMICOLON) {
+                advance();
+            } else {
+                errors.add("Expected ';' after assignment at line " + idToken.line);
+            }
             return assignment;
         }
 
@@ -256,7 +518,11 @@ public class Parser {
             advance();
             ASTNode increment = new ASTNode("INCREMENT");
             increment.value = idToken.value;
-            consume(Token.TokenType.SEMICOLON, "Expected ';'");
+            if (current().type == Token.TokenType.SEMICOLON) {
+                advance();
+            } else {
+                errors.add("Expected ';' after increment at line " + idToken.line);
+            }
             return increment;
         }
 
@@ -264,17 +530,22 @@ public class Parser {
             advance();
             ASTNode decrement = new ASTNode("DECREMENT");
             decrement.value = idToken.value;
-            consume(Token.TokenType.SEMICOLON, "Expected ';'");
+            if (current().type == Token.TokenType.SEMICOLON) {
+                advance();
+            } else {
+                errors.add("Expected ';' after decrement at line " + idToken.line);
+            }
             return decrement;
         }
 
-        errors.add("Assignement invalide: " + idToken.value);
+        errors.add("Assignement invalide: " + idToken.value + " at line " + idToken.line);
         return null;
     }
 
     private ASTNode parseBlock() {
-        consume(Token.TokenType.LBRACE, "Expected '{'");
+        Token lbrace = consume(Token.TokenType.LBRACE, "Expected '{'");
         ASTNode block = new ASTNode("BLOCK");
+        block.line = lbrace.line;
 
         while (!isAtEnd() && current().type != Token.TokenType.RBRACE) {
             ASTNode statement = parseStatement();
@@ -294,10 +565,10 @@ public class Parser {
             return token;
         }
 
-        Token current = current();
-        errors.add(errorMsg + " mais trouvé '" + current.value + "' à la ligne " + current.line);
+        Token currentToken = current();
+        errors.add(errorMsg + " mais trouvé '" + currentToken.value + "' à la ligne " + currentToken.line);
         advance();
-        return current;
+        return currentToken;
     }
 
     private Token current() {
@@ -314,7 +585,7 @@ public class Parser {
     }
 
     private boolean isAtEnd() {
-        return current().type == Token.TokenType.EOF;
+        return position >= tokens.size() || current().type == Token.TokenType.EOF;
     }
 
     private void printErrors() {
@@ -323,5 +594,9 @@ public class Parser {
             System.out.println("❌ " + error);
         }
         System.out.println("========================\n");
+    }
+
+    public List<String> getErrors() {
+        return errors;
     }
 }

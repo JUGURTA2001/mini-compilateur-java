@@ -10,7 +10,13 @@ public class ASTNode {
 
     public ASTNode(String type) {
         this.type = type;
-        this.value = "";
+        this.value = ""; // Ajout : jamais null
+        this.line = 0;
+    }
+    public ASTNode(String type, String value, int line) {
+        this.type = type;
+        this.value = (value != null) ? value : ""; // Ajout : valeur jamais null
+        this.line = line;
     }
 
     public ASTNode addChild(ASTNode child) {
@@ -27,9 +33,12 @@ public class ASTNode {
         }
 
         System.out.print(indent + "├─ " + type);
-        if (!value.isEmpty()) {
+
+        // Correction ici : sécurité sur la valeur null
+        if (value != null && !value.isEmpty()) {
             System.out.print(" [" + value + "]");
         }
+
         if (line > 0) {
             System.out.print(" (@" + line + ")");
         }

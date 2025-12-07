@@ -20,6 +20,24 @@ public class Lexer {
         KEYWORDS.put("public", Token.TokenType.PUBLIC);
         KEYWORDS.put("static", Token.TokenType.STATIC);
         KEYWORDS.put("return", Token.TokenType.RETURN);
+        KEYWORDS.put("void", Token.TokenType.VOID);
+        KEYWORDS.put("args", Token.TokenType.ARGS);
+        KEYWORDS.put("main", Token.TokenType.MAIN);
+        KEYWORDS.put("boolean", Token.TokenType.BOOLEAN);
+        KEYWORDS.put("char", Token.TokenType.CHAR);
+        KEYWORDS.put("System", Token.TokenType.SYSTEM);
+        KEYWORDS.put("out", Token.TokenType.OUT);
+        KEYWORDS.put("print", Token.TokenType.PRINT);
+        KEYWORDS.put("println", Token.TokenType.PRINTLN);
+        KEYWORDS.put("double", Token.TokenType.DOUBLE);
+        KEYWORDS.put("touati", Token.TokenType.TOUATI);
+        KEYWORDS.put("jugurta", Token.TokenType.JUGURTA);
+        KEYWORDS.put("final", Token.TokenType.FINAL);
+        KEYWORDS.put("private", Token.TokenType.PRIVATE);
+        KEYWORDS.put("pritected", Token.TokenType.PROTECTED);
+        KEYWORDS.put("int", Token.TokenType.INT);
+
+
     }
 
     public Lexer(String input) {
@@ -134,7 +152,6 @@ public class Lexer {
     private void readIdentifier() {
         StringBuilder sb = new StringBuilder();
         int startLine = line, startColumn = column;
-
         while (position < input.length() &&
                (Character.isLetterOrDigit(input.charAt(position)) || input.charAt(position) == '_')) {
             sb.append(input.charAt(position));
@@ -241,7 +258,7 @@ public class Lexer {
                 tokens.add(new Token(Token.TokenType.DIVIDE, "/", line, startColumn));
                 break;
             case '%':
-                tokens.add(new Token(Token.TokenType.MODULO, "%", line, startColumn));
+            tokens.add(new Token(Token.TokenType.MODULO, "%", line, startColumn));
                 break;
             case '(':
                 tokens.add(new Token(Token.TokenType.LPAREN, "(", line, startColumn));
@@ -261,6 +278,15 @@ public class Lexer {
             case ',':
                 tokens.add(new Token(Token.TokenType.COMMA, ",", line, startColumn));
                 break;
+            case '[': 
+                tokens.add(new Token(Token.TokenType.LBRACKET, "[", line, startColumn));
+                 break;
+            case ']':   
+                 tokens.add(new Token(Token.TokenType.RBRACKET, "]", line, startColumn));
+                  break;
+            case '.': 
+                tokens.add(new Token(Token.TokenType.DOT, ".", line, startColumn));
+                 break;
             default:
                 return false;
         }

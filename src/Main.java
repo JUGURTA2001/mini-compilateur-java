@@ -9,15 +9,17 @@ import java.util.*;
 public class Main {
     public static void main(String[] args)  {
         // Exemple de code avec boucle while
-        String path = "C:\\Users\\jugurta\\Desktop\\mini-compilateur-java\\tests\\input\\WhileTest.java";
-//String code = Files.readString(Path.of(path));
+       String path = "C:\\Users\\jugurta\\Desktop\\mini-compilateur-java\\tests\\WhileTest.java";
+    String code = "";
+    try {
+        code = Files.readString(Path.of(path));
+    } catch (IOException e) {
+        System.err.println("Erreur lors de la lecture du fichier : " + e.getMessage());
+        System.exit(1);
+    }
+
         
         
-        String code="int i = 0;\n" +
-                     "while (i < 10+1) {\n" +
-                     "    i++;\n" + 
-                     "i++;"+
-                     "}";
 
         System.out.println("=== MINI-COMPILATEUR ===\n");
         System.out.println("📄 CODE À ANALYSER:");

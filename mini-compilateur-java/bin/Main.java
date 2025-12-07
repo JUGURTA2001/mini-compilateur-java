@@ -10,10 +10,10 @@ public class Main {
     public static void main(String[] args)  {
         // Exemple de code avec boucle while
         String path = "C:\\Users\\jugurta\\Desktop\\mini-compilateur-java\\tests\\input\\WhileTest.java";
-String code = Files.readString(Path.of(path));
+//String code = Files.readString(Path.of(path));
         
         
-        String cod="int i = 0;\n" +
+        String codw="int i = 0;\n" +
                      "while (i < 10) {\n" +
                      "    i++;\n" +
                      "}";
